@@ -45,6 +45,15 @@ type Battler struct {
 	IsTerastalized bool                 // 是否已太晶化
 	TeraType       valueobject.PokeType // 太晶属性
 	UsedZMove      bool                 // 是否已使用Z招式
+
+	// 形态变化状态
+	IsFormChanged       bool                   // 是否已形态变化
+	OriginalFormID      int                    // 原始形态ID
+	OriginalTypes       []valueobject.PokeType // 原始属性
+	OriginalStats       Stats                  // 原始能力值（用于恢复）
+	FormChangeBoosts    map[string]int         // 形态变化带来的能力值加成
+	FormChangeName      string                 // 变化后的形态名称
+	FormChangeSpriteURL string                 // 变化后的精灵图URL
 }
 
 // StatStages 能力等级
@@ -433,4 +442,90 @@ func (b *Battler) TakeDamageWithItem(damage int) int {
 		b.ItemConsumed = true
 	}
 	return b.TakeDamage(damage)
+}
+
+// ApplyFormChange 应用形态变化
+func (b *Battler) ApplyFormChange(newTypes []valueobject.PokeType, statBoosts map[string]int, formName string, spriteURL string) {
+	if b.IsFormChanged {
+		return // 已经形态变化过了
+	}
+
+	// 保存原始状态
+	b.OriginalFormID = b.Pokemon.ID
+	b.OriginalTypes = append([]valueobject.PokeType{}, b.Types...)
+	b.OriginalStats = Stats{
+		HP:    b.MaxHP,
+		Atk:   b.Atk,
+		Def:   b.Def,
+		SpAtk: b.SpAtk,
+		SpDef: b.SpDef,
+		Speed: b.Speed,
+	}
+
+	// 应用形态变化
+	b.IsFormChanged = true
+	b.FormChangeName = formName
+	b.FormChangeSpriteURL = spriteURL
+	b.FormChangeBoosts = statBoosts
+
+	// 更新属性
+	if len(newTypes) > 0 {
+		b.Types = newTypes
+	}
+
+	// 应用能力值加成
+	if statBoosts != nil {
+		if boost, ok := statBoosts["atk"]; ok {
+			b.Atk += boost
+		}
+		if boost, ok := statBoosts["def"]; ok {
+			b.Def += boost
+		}
+		if boost, ok := statBoosts["spatk"]; ok {
+			b.SpAtk += boost
+		}
+		if boost, ok := statBoosts["spdef"]; ok {
+			b.SpDef += boost
+		}
+		if boost, ok := statBoosts["speed"]; ok {
+			b.Speed += boost
+		}
+	}
+}
+
+// RevertFormChange 恢复原始形态
+func (b *Battler) RevertFormChange() {
+	if !b.IsFormChanged {
+		return
+	}
+
+	// 恢复属性
+	b.Types = b.OriginalTypes
+	b.Atk = b.OriginalStats.Atk
+	b.Def = b.OriginalStats.Def
+	b.SpAtk = b.OriginalStats.SpAtk
+	b.SpDef = b.OriginalStats.SpDef
+	b.Speed = b.OriginalStats.Speed
+
+	// 清除形态变化状态
+	b.IsFormChanged = false
+	b.FormChangeName = ""
+	b.FormChangeSpriteURL = ""
+	b.FormChangeBoosts = nil
+}
+
+// GetDisplayName 获取显示名称（考虑形态变化）
+func (b *Battler) GetDisplayName() string {
+	if b.IsFormChanged && b.FormChangeName != "" {
+		return b.FormChangeName
+	}
+	return b.Pokemon.Name
+}
+
+// GetSpriteURL 获取精灵图URL（考虑形态变化）
+func (b *Battler) GetSpriteURL() string {
+	if b.IsFormChanged && b.FormChangeSpriteURL != "" {
+		return b.FormChangeSpriteURL
+	}
+	return b.Pokemon.SpriteURL
 }

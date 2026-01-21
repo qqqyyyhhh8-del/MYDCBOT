@@ -1763,7 +1763,7 @@ func (c *PokemonCommands) handleSearchMoveModalSubmit(i *discordgo.InteractionCr
 	}
 
 	// 搜索匹配的技能
-	var matchedMoves []entity.Move
+	var matchedMoves []*entity.Move
 	keywordLower := strings.ToLower(keyword)
 	for _, move := range pokemon.LearnableMoves {
 		if strings.Contains(strings.ToLower(move.Name), keywordLower) {
@@ -1800,7 +1800,7 @@ func (c *PokemonCommands) handleSearchMoveModalSubmit(i *discordgo.InteractionCr
 		for _, idx := range config.MoveIndices {
 			if idx < len(pokemon.LearnableMoves) {
 				move := pokemon.LearnableMoves[idx]
-				desc.WriteString(fmt.Sprintf("• %s (%s)\n", move.Name, move.Type.Chinese()))
+				desc.WriteString(fmt.Sprintf("• %s (%s)\n", move.Name, string(move.Type)))
 			}
 		}
 		desc.WriteString("\n")

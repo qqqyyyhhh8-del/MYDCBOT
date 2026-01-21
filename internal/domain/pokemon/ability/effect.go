@@ -62,6 +62,8 @@ type Move interface {
 	IsPunch() bool
 	IsSound() bool
 	IsBullet() bool
+	IsRecoil() bool // 是否有反作用力（舍身撞、蛮力等）
+	IsPulse() bool  // 是否为波动/波导技能
 }
 
 // DamageModifier 伤害修正结果
@@ -73,6 +75,7 @@ type DamageModifier struct {
 	STABMod       float64 // 本属性加成修正
 	CritMod       float64 // 会心修正
 	Immune        bool    // 是否免疫
+	HealPercent   float64 // 吸收回复比例（如蓄电、储水）
 	TypeOverride  *valueobject.PokeType // 属性覆盖
 }
 
@@ -98,18 +101,25 @@ type EntryResult struct {
 
 // HitResult 被击中效果结果
 type HitResult struct {
-	Messages       []string // 消息
-	DamageReduced  float64  // 伤害减免比例
-	ContactEffect  string   // 接触效果（如麻痹）
-	ContactChance  int      // 触发几率（百分比）
+	Messages       []string       // 消息
+	DamageReduced  float64        // 伤害减免比例
+	ContactEffect  string         // 接触效果（如麻痹）
+	ContactChance  int            // 触发几率（百分比）
+	RecoilDamage   int            // 反伤伤害
+	StatChanges    map[string]int // 能力变化（对攻击方）
 }
 
 // TurnEndResult 回合结束效果结果
 type TurnEndResult struct {
-	Messages   []string // 消息
-	StatBoosts map[string]int // 能力提升
-	Healing    int      // 回复量
-	Damage     int      // 伤害量
+	Messages     []string       // 消息
+	StatBoosts   map[string]int // 能力提升
+	Healing      int            // 回复量（旧字段，保留兼容）
+	Damage       int            // 伤害量（旧字段，保留兼容）
+	HealAmount   int            // 回复量
+	DamageAmount int            // 伤害量
+	CureStatus   bool           // 是否治愈状态
+	CureChance   int            // 治愈几率（百分比）
+	NegatePoison bool           // 是否免疫中毒伤害
 }
 
 // StatusCheckResult 状态检查结果
@@ -127,6 +137,19 @@ type SpeedModifier struct {
 type PriorityModifier struct {
 	Bonus     int  // 优先度加成
 	Condition bool // 是否满足条件
+}
+
+// FormChangeResult 形态变化结果
+type FormChangeResult struct {
+	Triggered     bool                     // 是否触发形态变化
+	NewFormID     int                      // 新形态的宝可梦ID（用于获取新数据）
+	NewFormName   string                   // 新形态名称
+	NewTypes      []valueobject.PokeType   // 新属性（nil表示不变）
+	StatBoosts    map[string]int           // 能力值提升（绝对值，非等级）
+	Messages      []string                 // 形态变化消息
+	SpriteURL     string                   // 新精灵图URL
+	RevertOnExit  bool                     // 退场时是否恢复原形态
+	RevertOnFaint bool                     // 濒死时是否恢复原形态
 }
 
 // Effect 特性效果接口
@@ -163,6 +186,9 @@ type Effect interface {
 	
 	// OnKO 击倒对手时触发
 	OnKO(self Battler, target Battler, ctx *BattleContext) *TurnEndResult
+	
+	// OnFormChange 击倒对手后检查形态变化（如羁绊进化）
+	OnFormChange(self Battler, target Battler, ctx *BattleContext) *FormChangeResult
 }
 
 // BaseEffect 基础效果实现（提供默认空实现）
@@ -212,5 +238,9 @@ func (e *BaseEffect) OnPriorityCalc(self Battler, move Move, ctx *BattleContext)
 }
 
 func (e *BaseEffect) OnKO(self Battler, target Battler, ctx *BattleContext) *TurnEndResult {
+	return nil
+}
+
+func (e *BaseEffect) OnFormChange(self Battler, target Battler, ctx *BattleContext) *FormChangeResult {
 	return nil
 }

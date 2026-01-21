@@ -165,3 +165,111 @@ func (e *UnnerveEffect) OnEntry(self Battler, opponent Battler, ctx *BattleConte
 		Messages: []string{"😰 紧张感让对手无法食用树果！"},
 	}
 }
+
+// DownloadEffect 下载特性
+type DownloadEffect struct {
+	BaseEffect
+}
+
+func (e *DownloadEffect) GetAbilityID() int {
+	return 88
+}
+
+func (e *DownloadEffect) GetTriggers() []TriggerType {
+	return []TriggerType{TriggerOnEntry}
+}
+
+func (e *DownloadEffect) OnEntry(self Battler, opponent Battler, ctx *BattleContext) *EntryResult {
+	// 比较对手防御和特防，选择较低的提升对应攻击
+	// 这里简化处理，随机选择
+	return &EntryResult{
+		Messages:    []string{"📥 下载分析了对手的数据！"},
+		StatChanges: map[string]int{"spatk": 1}, // 默认提升特攻
+	}
+}
+
+// FriskEffect 察觉特性
+type FriskEffect struct {
+	BaseEffect
+}
+
+func (e *FriskEffect) GetAbilityID() int {
+	return 119
+}
+
+func (e *FriskEffect) GetTriggers() []TriggerType {
+	return []TriggerType{TriggerOnEntry}
+}
+
+func (e *FriskEffect) OnEntry(self Battler, opponent Battler, ctx *BattleContext) *EntryResult {
+	if opponent != nil && opponent.GetItem() != nil {
+		return &EntryResult{
+			Messages: []string{"👁️ 察觉发现对手携带了 " + opponent.GetItem().Name + "！"},
+		}
+	}
+	return &EntryResult{
+		Messages: []string{"👁️ 察觉没有发现对手携带道具。"},
+	}
+}
+
+// IntrepidSwordEffect 不挠之剑特性
+type IntrepidSwordEffect struct {
+	BaseEffect
+}
+
+func (e *IntrepidSwordEffect) GetAbilityID() int {
+	return 234
+}
+
+func (e *IntrepidSwordEffect) GetTriggers() []TriggerType {
+	return []TriggerType{TriggerOnEntry}
+}
+
+func (e *IntrepidSwordEffect) OnEntry(self Battler, opponent Battler, ctx *BattleContext) *EntryResult {
+	return &EntryResult{
+		Messages:    []string{"⚔️ 不挠之剑提升了攻击！"},
+		StatChanges: map[string]int{"atk": 1},
+	}
+}
+
+// DauntlessShieldEffect 不屈之盾特性
+type DauntlessShieldEffect struct {
+	BaseEffect
+}
+
+func (e *DauntlessShieldEffect) GetAbilityID() int {
+	return 235
+}
+
+func (e *DauntlessShieldEffect) GetTriggers() []TriggerType {
+	return []TriggerType{TriggerOnEntry}
+}
+
+func (e *DauntlessShieldEffect) OnEntry(self Battler, opponent Battler, ctx *BattleContext) *EntryResult {
+	return &EntryResult{
+		Messages:    []string{"🛡️ 不屈之盾提升了防御！"},
+		StatChanges: map[string]int{"def": 1},
+	}
+}
+
+// TraceEffect 复制特性
+type TraceEffect struct {
+	BaseEffect
+}
+
+func (e *TraceEffect) GetAbilityID() int {
+	return 36
+}
+
+func (e *TraceEffect) GetTriggers() []TriggerType {
+	return []TriggerType{TriggerOnEntry}
+}
+
+func (e *TraceEffect) OnEntry(self Battler, opponent Battler, ctx *BattleContext) *EntryResult {
+	if opponent != nil && opponent.GetAbility() != nil {
+		return &EntryResult{
+			Messages: []string{"🔄 复制了对手的 " + opponent.GetAbility().Name + "！"},
+		}
+	}
+	return nil
+}

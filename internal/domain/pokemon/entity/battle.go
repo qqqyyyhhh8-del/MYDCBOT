@@ -4,6 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/user/dcminigames/internal/domain/pokemon/ability"
+	"github.com/user/dcminigames/internal/domain/pokemon/valueobject"
 )
 
 // BattleState 对战状态
@@ -47,17 +50,22 @@ const (
 
 // Battle 对战实体
 type Battle struct {
-	ID          string
-	ChannelID   string
-	Player1     *BattlePlayer
-	Player2     *BattlePlayer
-	CurrentTurn int
-	State       BattleState
-	Winner      *BattlePlayer
-	Logs        []string
-	CreatedAt   time.Time
-	TeamSize    TeamSize // 队伍大小
-	IsAIBattle  bool     // 是否为人机对战
+	ID             string
+	ChannelID      string
+	Player1        *BattlePlayer
+	Player2        *BattlePlayer
+	CurrentTurn    int
+	State          BattleState
+	Winner         *BattlePlayer
+	Logs           []string
+	CreatedAt      time.Time
+	TeamSize       TeamSize              // 队伍大小
+	IsAIBattle     bool                  // 是否为人机对战
+	Weather        valueobject.Weather   // 当前天气
+	WeatherTurns   int                   // 天气剩余回合
+	Terrain        string                // 当前场地
+	TerrainTurns   int                   // 场地剩余回合
+	AbilityService *ability.Service      // 特性服务
 }
 
 // BattlePlayer 对战玩家
@@ -124,28 +132,32 @@ func NewBattle(id, channelID string) *Battle {
 // NewBattleWithTeamSize 创建指定队伍大小的对战
 func NewBattleWithTeamSize(id, channelID string, teamSize TeamSize) *Battle {
 	return &Battle{
-		ID:          id,
-		ChannelID:   channelID,
-		CurrentTurn: 1,
-		State:       BattleStateWaiting,
-		Logs:        make([]string, 0),
-		CreatedAt:   time.Now(),
-		TeamSize:    teamSize,
-		IsAIBattle:  false,
+		ID:             id,
+		ChannelID:      channelID,
+		CurrentTurn:    1,
+		State:          BattleStateWaiting,
+		Logs:           make([]string, 0),
+		CreatedAt:      time.Now(),
+		TeamSize:       teamSize,
+		IsAIBattle:     false,
+		Weather:        valueobject.WeatherNone,
+		AbilityService: ability.NewService(),
 	}
 }
 
 // NewAIBattle 创建人机对战
 func NewAIBattle(id, channelID string, teamSize TeamSize) *Battle {
 	return &Battle{
-		ID:          id,
-		ChannelID:   channelID,
-		CurrentTurn: 1,
-		State:       BattleStateWaiting,
-		Logs:        make([]string, 0),
-		CreatedAt:   time.Now(),
-		TeamSize:    teamSize,
-		IsAIBattle:  true,
+		ID:             id,
+		ChannelID:      channelID,
+		CurrentTurn:    1,
+		State:          BattleStateWaiting,
+		Logs:           make([]string, 0),
+		CreatedAt:      time.Now(),
+		TeamSize:       teamSize,
+		IsAIBattle:     true,
+		Weather:        valueobject.WeatherNone,
+		AbilityService: ability.NewService(),
 	}
 }
 
@@ -486,6 +498,10 @@ func (b *Battle) ExecuteTurn() []string {
 		}
 	}
 
+	// 回合结束特性触发
+	turnEndLogs := b.TriggerTurnEndAbilities()
+	logs = append(logs, turnEndLogs...)
+
 	b.CurrentTurn++
 	b.Logs = append(b.Logs, logs...)
 	b.clearActions()
@@ -504,7 +520,21 @@ func (b *Battle) executeSwitch(player *BattlePlayer) []string {
 	}
 	oldName := player.Pokemon.Pokemon.Name
 	player.Pokemon = newPokemon
+	player.ActiveIndex = player.Action.SwitchIndex
 	logs = append(logs, "🔄 "+player.Username+" 收回了 "+oldName+"，派出了 "+newPokemon.Pokemon.Name+"！")
+
+	// 触发出场特性
+	var opponent *Battler
+	if player == b.Player1 && b.Player2 != nil {
+		opponent = b.Player2.Pokemon
+	} else if player == b.Player2 && b.Player1 != nil {
+		opponent = b.Player1.Pokemon
+	}
+	if opponent != nil {
+		entryLogs := b.TriggerEntryAbility(newPokemon, opponent)
+		logs = append(logs, entryLogs...)
+	}
+
 	return logs
 }
 
@@ -540,6 +570,18 @@ func (b *Battle) executeAction(attacker, defender *BattlePlayer) []string {
 		return logs
 	}
 
+	// 应用特性伤害修正
+	if b.AbilityService != nil {
+		ctx := b.GetBattleContext()
+		moveAdapter := NewMoveAdapter(move)
+		_, _, _, _, _, immune, abilityMsgs := b.AbilityService.CalculateDamageWithAbilities(
+			attacker.Pokemon, defender.Pokemon, moveAdapter, ctx)
+		logs = append(logs, abilityMsgs...)
+		if immune {
+			return logs
+		}
+	}
+
 	if result.Critical {
 		logs = append(logs, "💥 会心一击！")
 	}
@@ -558,6 +600,56 @@ func (b *Battle) executeAction(attacker, defender *BattlePlayer) []string {
 
 	logs = append(logs, "💔 造成了 **"+itoa(result.Damage)+"** 点伤害！")
 	logs = append(logs, "❤️ "+defender.Pokemon.Pokemon.Name+" HP: "+itoa(defender.Pokemon.CurrentHP)+"/"+itoa(defender.Pokemon.MaxHP))
+
+	// 触发受击特���（如静电、粗糙皮肤等）
+	if b.AbilityService != nil && defender.Pokemon.IsAlive() {
+		ctx := b.GetBattleContext()
+		moveAdapter := NewMoveAdapter(move)
+		hitResult := b.AbilityService.TriggerBeingHit(defender.Pokemon, attacker.Pokemon, moveAdapter, result.Damage, ctx)
+		if hitResult != nil {
+			logs = append(logs, hitResult.Messages...)
+			// 处理接触效果（如麻痹、中毒）
+			if hitResult.ContactEffect != "" && hitResult.ContactChance > 0 {
+				if randInt(100) < hitResult.ContactChance {
+					if attacker.Pokemon.GetStatus() == "" {
+						attacker.Pokemon.SetStatus(hitResult.ContactEffect)
+						logs = append(logs, "⚡ "+attacker.Pokemon.Pokemon.Name+" 陷入了"+hitResult.ContactEffect+"状态！")
+					}
+				}
+			}
+			// 处理反伤（如粗糙皮肤、铁刺）
+			if hitResult.RecoilDamage > 0 {
+				attacker.Pokemon.TakeDamage(hitResult.RecoilDamage)
+				logs = append(logs, "💥 "+attacker.Pokemon.Pokemon.Name+" 受到了反伤！")
+			}
+			// 处理能力变化（如黏滑降速）
+			if hitResult.StatChanges != nil {
+				for stat, stages := range hitResult.StatChanges {
+					if newStage, changed := attacker.Pokemon.ModifyStat(stat, stages); changed {
+						if stages < 0 {
+							logs = append(logs, "📉 "+attacker.Pokemon.Pokemon.Name+" 的"+getStatName(stat)+"下降了！(现在: "+itoa(newStage)+"级)")
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// 检查击倒触发特性（如自信过剩、异兽提升）
+	if b.AbilityService != nil && !defender.Pokemon.IsAlive() {
+		ctx := b.GetBattleContext()
+		koResult := b.AbilityService.TriggerKO(attacker.Pokemon, defender.Pokemon, ctx)
+		if koResult != nil {
+			logs = append(logs, koResult.Messages...)
+			if koResult.StatBoosts != nil {
+				for stat, stages := range koResult.StatBoosts {
+					if newStage, changed := attacker.Pokemon.ModifyStat(stat, stages); changed {
+						logs = append(logs, "📈 "+attacker.Pokemon.Pokemon.Name+" 的"+getStatName(stat)+"提升了！(现在: "+itoa(newStage)+"级)")
+					}
+				}
+			}
+		}
+	}
 
 	// 检查技能是否需要充能（如破坏光线）
 	if move.RechargeRequired {
@@ -610,4 +702,187 @@ func (b *Battle) GetBattleStatus() string {
 		return "对战已结束"
 	}
 	return "对战进行中"
+}
+
+// ============================================
+// 特性系统集成
+// ============================================
+
+// GetBattleContext 获取战斗上下文（用于特性系统）
+func (b *Battle) GetBattleContext() *ability.BattleContext {
+	return &ability.BattleContext{
+		Weather:   b.Weather,
+		Terrain:   b.Terrain,
+		Turn:      b.CurrentTurn,
+		IsDoubles: false,
+	}
+}
+
+// TriggerEntryAbility 触发出场特性
+func (b *Battle) TriggerEntryAbility(self *Battler, opponent *Battler) []string {
+	logs := make([]string, 0)
+	if b.AbilityService == nil || self.Ability == nil {
+		return logs
+	}
+
+	ctx := b.GetBattleContext()
+	messages, weather, statChanges := b.AbilityService.ProcessEntryAbility(self, opponent, ctx)
+
+	logs = append(logs, messages...)
+
+	// 设置天气
+	if weather != nil {
+		b.Weather = *weather
+		b.WeatherTurns = 5
+	}
+
+	// 应用对手能力变化
+	if statChanges != nil {
+		for stat, stages := range statChanges {
+			if newStage, changed := opponent.ModifyStat(stat, stages); changed {
+				if stages < 0 {
+					logs = append(logs, "📉 "+opponent.Pokemon.Name+" 的"+getStatName(stat)+"下降了！(现在: "+itoa(newStage)+"级)")
+				} else {
+					logs = append(logs, "📈 "+opponent.Pokemon.Name+" 的"+getStatName(stat)+"提升了！(现在: "+itoa(newStage)+"级)")
+				}
+			}
+		}
+	}
+
+	return logs
+}
+
+// TriggerTurnEndAbilities 触发回合结束特性
+func (b *Battle) TriggerTurnEndAbilities() []string {
+	logs := make([]string, 0)
+	if b.AbilityService == nil {
+		return logs
+	}
+
+	ctx := b.GetBattleContext()
+
+	// 处理天气伤害/回复
+	if b.Weather != valueobject.WeatherNone {
+		logs = append(logs, b.processWeatherEffects()...)
+		b.WeatherTurns--
+		if b.WeatherTurns <= 0 {
+			logs = append(logs, "☀️ 天气恢复正常了。")
+			b.Weather = valueobject.WeatherNone
+		}
+	}
+
+	// 玩家1的回合结束特性
+	if b.Player1 != nil && b.Player1.Pokemon != nil && b.Player1.Pokemon.IsAlive() {
+		messages, statBoosts, healing, damage := b.AbilityService.ProcessTurnEndAbility(b.Player1.Pokemon, ctx)
+		logs = append(logs, messages...)
+		if healing > 0 {
+			b.Player1.Pokemon.Heal(healing)
+		}
+		if damage > 0 {
+			b.Player1.Pokemon.TakeDamage(damage)
+		}
+		if statBoosts != nil {
+			for stat, stages := range statBoosts {
+				b.Player1.Pokemon.ModifyStat(stat, stages)
+			}
+		}
+	}
+
+	// 玩家2的回合结束特性
+	if b.Player2 != nil && b.Player2.Pokemon != nil && b.Player2.Pokemon.IsAlive() {
+		messages, statBoosts, healing, damage := b.AbilityService.ProcessTurnEndAbility(b.Player2.Pokemon, ctx)
+		logs = append(logs, messages...)
+		if healing > 0 {
+			b.Player2.Pokemon.Heal(healing)
+		}
+		if damage > 0 {
+			b.Player2.Pokemon.TakeDamage(damage)
+		}
+		if statBoosts != nil {
+			for stat, stages := range statBoosts {
+				b.Player2.Pokemon.ModifyStat(stat, stages)
+			}
+		}
+	}
+
+	return logs
+}
+
+// processWeatherEffects 处理天气效果
+func (b *Battle) processWeatherEffects() []string {
+	logs := make([]string, 0)
+
+	processPokemon := func(pokemon *Battler) {
+		if pokemon == nil || !pokemon.IsAlive() {
+			return
+		}
+
+		// 检查是否免疫天气伤害
+		immune := false
+		for _, t := range pokemon.Types {
+			switch b.Weather {
+			case valueobject.WeatherSand:
+				if t == valueobject.TypeRock || t == valueobject.TypeGround || t == valueobject.TypeSteel {
+					immune = true
+				}
+			case valueobject.WeatherHail:
+				if t == valueobject.TypeIce {
+					immune = true
+				}
+			}
+		}
+
+		if !immune {
+			switch b.Weather {
+			case valueobject.WeatherSand:
+				damage := pokemon.MaxHP / 16
+				if damage < 1 {
+					damage = 1
+				}
+				pokemon.TakeDamage(damage)
+				logs = append(logs, "🏜️ "+pokemon.Pokemon.Name+" 受到了沙暴伤害！")
+			case valueobject.WeatherHail:
+				damage := pokemon.MaxHP / 16
+				if damage < 1 {
+					damage = 1
+				}
+				pokemon.TakeDamage(damage)
+				logs = append(logs, "🌨️ "+pokemon.Pokemon.Name+" 受到了冰雹伤害！")
+			}
+		}
+	}
+
+	if b.Player1 != nil {
+		processPokemon(b.Player1.Pokemon)
+	}
+	if b.Player2 != nil {
+		processPokemon(b.Player2.Pokemon)
+	}
+
+	return logs
+}
+
+// getStatName 获取能力名称
+func getStatName(stat string) string {
+	names := map[string]string{
+		"attack":    "攻击",
+		"defense":   "防御",
+		"spattack":  "特攻",
+		"spdefense": "特防",
+		"speed":     "速度",
+		"accuracy":  "命中",
+		"evasion":   "闪避",
+	}
+	if name, ok := names[stat]; ok {
+		return name
+	}
+	return stat
+}
+
+// randInt 生成 0 到 max-1 的随机整数
+func randInt(max int) int {
+	if max <= 0 {
+		return 0
+	}
+	return int(time.Now().UnixNano() % int64(max))
 }

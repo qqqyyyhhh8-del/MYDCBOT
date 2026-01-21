@@ -199,3 +199,34 @@ func (m *MoveAdapter) IsBullet() bool {
 	}
 	return bulletMovesMap[m.Move.Name]
 }
+
+// IsRecoil 是否为反作用力技能
+func (m *MoveAdapter) IsRecoil() bool {
+	recoilMovesMap := map[string]bool{
+		"舍身撞":    true,
+		"蛮力":     true,
+		"双刃头锤":   true,
+		"伏特攻击":   true,
+		"闪焰冲锋":   true,
+		"勇敢之鸟":   true,
+		"木槌":     true,
+		"终极冲击":   true,
+		"破坏光线":   true,
+		"亿万吸收":   true,
+		"超极巨异变冲锋": true,
+	}
+	return recoilMovesMap[m.Move.Name]
+}
+
+// IsPulse 是否为波动/波导技能
+func (m *MoveAdapter) IsPulse() bool {
+	pulseMovesMap := map[string]bool{
+		"波导弹":   true,
+		"水之波动":  true,
+		"恶之波动":  true,
+		"龙之波动":  true,
+		"起源之波动": true,
+		"治愈波动":  true,
+	}
+	return pulseMovesMap[m.Move.Name]
+}
