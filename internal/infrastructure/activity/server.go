@@ -316,6 +316,7 @@ func (s *Server) exchangeCodeForToken(code string) (*TokenResponse, error) {
 	data.Set("code", code)
 	data.Set("client_id", s.config.ClientID)
 	data.Set("client_secret", s.config.ClientSecret)
+	data.Set("redirect_uri", s.getRedirectURI())
 
 	req, err := http.NewRequest("POST", "https://discord.com/api/oauth2/token", strings.NewReader(data.Encode()))
 	if err != nil {
@@ -532,6 +533,7 @@ func (s *Server) getDiscordSDKScript(basePath string) string {
         const { code } = await window.discordSdk.commands.authorize({
             client_id: '%s',
             response_type: 'code',
+            redirect_uri: '%s',
             state: '',
             prompt: 'none',
             scope: ['identify', 'guilds'],
@@ -605,7 +607,7 @@ func (s *Server) getDiscordSDKScript(basePath string) string {
     }
 })();
 </script>
-`, s.config.ClientID, s.config.ClientID, apiPath)
+`, s.config.ClientID, s.getRedirectURI(), s.config.ClientID, apiPath)
 }
 
 func (s *Server) GetPublicURL() string {
@@ -613,6 +615,13 @@ func (s *Server) GetPublicURL() string {
 		return s.config.PublicURL
 	}
 	return fmt.Sprintf("http://localhost:%d", s.config.Port)
+}
+
+func (s *Server) getRedirectURI() string {
+	if s.config.RedirectURI != "" {
+		return s.config.RedirectURI
+	}
+	return "https://discord.com"
 }
 
 // getBasePath 从 public_url 提取路径前缀
