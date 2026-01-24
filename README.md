@@ -544,6 +544,7 @@ activity:
   enabled: false  # 是否启用 Activity 功能
   client_id: "your-application-id"  # Discord Application ID
   client_secret: "your-client-secret"  # Discord Application Client Secret
+  redirect_uri: "https://discord.com"  # OAuth2 Redirect URI
   port: 8080  # Activity Web 服务器端口
   public_url: ""  # 公网访问地址 (如: https://your-domain.com)
   game_path: "./noname"  # 无名杀游戏文件路径

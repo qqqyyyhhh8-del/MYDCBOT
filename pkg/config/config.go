@@ -34,6 +34,7 @@ type ActivityConfig struct {
 	Enabled      bool   `yaml:"enabled"`
 	ClientID     string `yaml:"client_id"`
 	ClientSecret string `yaml:"client_secret"`
+	RedirectURI  string `yaml:"redirect_uri"` // OAuth2 redirect URI
 	Port         int    `yaml:"port"`
 	PublicURL    string `yaml:"public_url"`
 	GamePath     string `yaml:"game_path"`
@@ -63,6 +64,9 @@ func Load(path string) (*Config, error) {
 	}
 	if cfg.Activity.Port == 0 {
 		cfg.Activity.Port = 8080
+	}
+	if cfg.Activity.RedirectURI == "" {
+		cfg.Activity.RedirectURI = "https://discord.com"
 	}
 	if cfg.Activity.GamePath == "" {
 		cfg.Activity.GamePath = "./noname"
