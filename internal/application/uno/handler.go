@@ -151,3 +151,115 @@ func (h *Handler) PassTurn(channelID, playerID string) error {
 func (h *Handler) EndGame(channelID string) error {
 	return h.repo.Delete(channelID)
 }
+
+// ========== 强制摸牌机制 ==========
+
+// MustDrawCard 强制摸牌（没有能打的牌时调用）
+// 返回: 摸到的牌, 是否可以打出, 错误
+func (h *Handler) MustDrawCard(channelID, playerID string) (*entity.Card, bool, error) {
+	game, err := h.repo.FindByChannelID(channelID)
+	if err != nil {
+		return nil, false, err
+	}
+	card, canPlay, err := game.MustDrawCard(playerID)
+	if err != nil {
+		return nil, false, err
+	}
+	if err := h.repo.Save(game); err != nil {
+		return nil, false, err
+	}
+	return card, canPlay, nil
+}
+
+// HasPlayableCard 检查玩家是否有能打的牌
+func (h *Handler) HasPlayableCard(channelID, playerID string) (bool, error) {
+	game, err := h.repo.FindByChannelID(channelID)
+	if err != nil {
+		return false, err
+	}
+	return game.HasPlayableCard(playerID), nil
+}
+
+// ========== +4 质疑机制 ==========
+
+// ChallengeWildDraw 质疑 +4
+// 返回: 质疑是否成功, 被罚牌的玩家ID, 罚牌数量, 错误
+func (h *Handler) ChallengeWildDraw(channelID, challengerID string) (bool, string, int, error) {
+	game, err := h.repo.FindByChannelID(channelID)
+	if err != nil {
+		return false, "", 0, err
+	}
+	success, penalizedID, count, err := game.ChallengeWildDraw(challengerID)
+	if err != nil {
+		return false, "", 0, err
+	}
+	if err := h.repo.Save(game); err != nil {
+		return false, "", 0, err
+	}
+	return success, penalizedID, count, nil
+}
+
+// AcceptWildDraw 接受 +4 不质疑
+func (h *Handler) AcceptWildDraw(channelID, playerID string) error {
+	game, err := h.repo.FindByChannelID(channelID)
+	if err != nil {
+		return err
+	}
+	if err := game.AcceptWildDraw(playerID); err != nil {
+		return err
+	}
+	return h.repo.Save(game)
+}
+
+// IsWaitingChallenge 检查是否在等待 +4 质疑
+func (h *Handler) IsWaitingChallenge(channelID string) (bool, string, error) {
+	game, err := h.repo.FindByChannelID(channelID)
+	if err != nil {
+		return false, "", err
+	}
+	if game.State == entity.GameStateWaitingChallenge {
+		return true, game.WildDrawVictim, nil
+	}
+	return false, "", nil
+}
+
+// ========== UNO 喊话机制 ==========
+
+// PressUnoButton 按下 UNO 按钮
+// 返回: 是否成功, 被罚牌的玩家ID（如果有）, 错误
+func (h *Handler) PressUnoButton(channelID, playerID string) (bool, string, error) {
+	game, err := h.repo.FindByChannelID(channelID)
+	if err != nil {
+		return false, "", err
+	}
+	success, penalizedID, err := game.PressUnoButton(playerID)
+	if err != nil {
+		return false, "", err
+	}
+	if err := h.repo.Save(game); err != nil {
+		return false, "", err
+	}
+	return success, penalizedID, nil
+}
+
+// IsUnoButtonActive 检查 UNO 按钮是否激活
+func (h *Handler) IsUnoButtonActive(channelID string) (bool, string, error) {
+	game, err := h.repo.FindByChannelID(channelID)
+	if err != nil {
+		return false, "", err
+	}
+	if game.IsUnoButtonActive() {
+		return true, game.UnoPlayerID, nil
+	}
+	return false, "", nil
+}
+
+// CancelUnoButton 取消 UNO 按钮（超时时调用）
+func (h *Handler) CancelUnoButton(channelID string) error {
+	game, err := h.repo.FindByChannelID(channelID)
+	if err != nil {
+		return err
+	}
+	game.CancelUnoButton()
+	return h.repo.Save(game)
+}

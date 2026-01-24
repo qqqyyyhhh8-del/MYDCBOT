@@ -19,7 +19,8 @@ func NewBot(token string) (*Bot, error) {
 	}
 	s.Identify.Intents = discordgo.IntentsGuilds |
 		discordgo.IntentsGuildMessages |
-		discordgo.IntentsDirectMessages
+		discordgo.IntentsDirectMessages |
+		discordgo.IntentsGuildVoiceStates
 	return &Bot{session: s}, nil
 }
 

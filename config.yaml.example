@@ -1,1 +1,26 @@
-The config.yaml will be ctreated after you run first time
+# Discord Bot 配置
+discord:
+  token: "your-bot-token-here"
+  guild_id: "your-guild-id-here"  # 用于同步斜杠命令的服务器 ID
+
+# UNO 游戏配置
+uno:
+  assets_path: "./assets/uno"  # UNO 卡牌图片路径
+
+# LLM 配置 (用于 AI 功能)
+llm:
+  provider: "openai"
+  api_key: "your-api-key-here"
+  base_url: "https://api.openai.com"
+  model: "gpt-4"
+
+# Discord Activity 配置 (无名杀/三国杀)
+activity:
+  enabled: false  # 是否启用 Activity 功能
+  client_id: "your-application-id"  # Discord Application ID
+  client_secret: "your-client-secret"  # Discord Application Client Secret
+  port: 8080  # Activity Web 服务器端口
+  public_url: ""  # 公网访问地址 (如: https://your-domain.com)
+  game_path: "./noname"  # 无名杀游戏文件路径
+  dev_mode: true  # 开发模式：自动启动 Vite 开发服务器并代理请求
+  vite_port: 5173  # Vite 开发服务器端口

@@ -8,9 +8,10 @@ import (
 )
 
 type Config struct {
-	Discord DiscordConfig `yaml:"discord"`
-	Uno     UnoConfig     `yaml:"uno"`
-	LLM     LLMConfig     `yaml:"llm"`
+	Discord  DiscordConfig  `yaml:"discord"`
+	Uno      UnoConfig      `yaml:"uno"`
+	LLM      LLMConfig      `yaml:"llm"`
+	Activity ActivityConfig `yaml:"activity"`
 }
 
 type DiscordConfig struct {
@@ -27,6 +28,17 @@ type LLMConfig struct {
 	APIKey   string `yaml:"api_key"`
 	BaseURL  string `yaml:"base_url"`
 	Model    string `yaml:"model"`
+}
+
+type ActivityConfig struct {
+	Enabled      bool   `yaml:"enabled"`
+	ClientID     string `yaml:"client_id"`
+	ClientSecret string `yaml:"client_secret"`
+	Port         int    `yaml:"port"`
+	PublicURL    string `yaml:"public_url"`
+	GamePath     string `yaml:"game_path"`
+	DevMode      bool   `yaml:"dev_mode"`  // 是否使用 Vite 开发服务器
+	VitePort     int    `yaml:"vite_port"` // Vite 开发服务器端口
 }
 
 func Load(path string) (*Config, error) {
@@ -48,6 +60,15 @@ func Load(path string) (*Config, error) {
 	}
 	if cfg.LLM.Model == "" {
 		cfg.LLM.Model = "gpt-4"
+	}
+	if cfg.Activity.Port == 0 {
+		cfg.Activity.Port = 8080
+	}
+	if cfg.Activity.GamePath == "" {
+		cfg.Activity.GamePath = "./noname"
+	}
+	if cfg.Activity.VitePort == 0 {
+		cfg.Activity.VitePort = 5173
 	}
 
 	return &cfg, nil

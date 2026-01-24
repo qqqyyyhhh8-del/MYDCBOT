@@ -518,3 +518,97 @@ https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/s
 8. **接口适配**: 添加新的 Battler/Move 方法时需同步更新 `battler_adapter.go`
 9. **形态变化**: 形态变化特性需实现 `OnFormChange` 方法，返回 `FormChangeResult` 结构体
 10. **特性分类**: 特性按文件分类存放（`effects_calc.go`、`effects_entry.go`、`effects_formchange.go` 等），便于维护
+
+---
+
+## 🎴 三国杀 / 无名杀 (Discord Activity)
+
+> ⚠️ **重要提示：此功能目前无法正常运行！**
+
+### 功能介绍
+
+本项目计划集成 [无名杀](https://github.com/libccy/noname) 作为 Discord Activity，让用户可以直接在 Discord 语音频道中游玩三国杀。
+
+无名杀是一款开源的三国杀网页版游戏，支持：
+- 🎮 多种游戏模式（身份局、国战、欢乐成双等）
+- 🃏 丰富的武将和卡牌扩展包
+- 👥 多人在线对战
+- 🎨 精美的界面和动画效果
+
+### 配置说明
+
+在 `config.yaml` 中配置 Activity：
+
+```yaml
+activity:
+  enabled: false  # 是否启用 Activity 功能
+  client_id: "your-application-id"  # Discord Application ID
+  client_secret: "your-client-secret"  # Discord Application Client Secret
+  port: 8080  # Activity Web 服务器端口
+  public_url: ""  # 公网访问地址 (如: https://your-domain.com)
+  game_path: "./noname"  # 无名杀游戏文件路径
+  dev_mode: true  # 开发模式：自动启动 Vite 开发服务器并代理请求
+  vite_port: 5173  # Vite 开发服务器端口
+```
+
+### 相关文件
+
+- `noname/` - 无名杀游戏源代码目录
+- `internal/infrastructure/activity/` - Activity 基础设施层
+- `internal/interfaces/discord/commands/activity_commands.go` - Activity 命令处理
+
+---
+
+## ⚠️ 需要帮助：三国杀功能修复
+
+<table>
+<tr>
+<td>
+
+### 🚨 当前状态：无法正常运行
+
+三国杀 Discord Activity 功能目前**因不明原因无法正常工作**。
+
+我们已经尝试了多种方法，但仍未能成功让无名杀在 Discord Activity 环境中正常运行。
+
+### 可能的问题方向
+
+- Discord Embedded App SDK 集成问题
+- 无名杀在 iframe 环境中的兼容性
+- WebSocket 连接或网络代理配置
+- Activity 服务器与游戏客户端的通信
+- 跨域资源共享 (CORS) 配置
+- 其他未知的技术限制
+
+### 🙏 寻求社区帮助
+
+如果您有以下经验，我们非常期待您的帮助：
+
+- Discord Activity / Embedded App SDK 开发经验
+- 无名杀源码修改或部署经验
+- Web 游戏嵌入式环境适配经验
+- 类似项目的成功案例
+
+### 如何贡献
+
+1. Fork 本仓库
+2. 尝试修复 Activity 功能
+3. 提交 Pull Request
+4. 或在 Issues 中分享您的发现和建议
+
+**任何形式的帮助都非常感谢！** 🙏
+
+</td>
+</tr>
+</table>
+
+---
+
+## 许可证
+
+本项目仅供学习交流使用。
+
+- UNO 是 Mattel 公司的注册商标
+- 宝可梦是 Nintendo/Creatures Inc./GAME FREAK inc. 的注册商标
+- 三国杀是游卡桌游的注册商标
+- 无名杀遵循其原项目的开源协议
